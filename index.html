@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Socket.IO Chat</title>
+  <style>
+    body { font-family: Arial; padding-bottom: 4rem; }
+    #form { position: fixed; bottom: 0; width: 100%; background: #eee; display: flex; padding: 10px; }
+    #input { flex: 1; padding: 10px; }
+    button { padding: 10px; }
+    #messages { list-style-type: none; padding: 0; }
+    #messages li { padding: 5px 10px; }
+    #online { position: fixed; top: 0; right: 0; background: #f4f4f4; padding: 10px; border-left: 1px solid #ccc; }
+    #typing { font-style: italic; color: gray; }
+  </style>
+</head>
+<body>
+  <ul id="messages"></ul>
+  <p id="typing"></p>
+  <div id="online">
+    <strong>Online Users:</strong>
+    <ul id="userList"></ul>
+  </div>
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="Type your message..." /><button>Send</button>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const typingEl = document.getElementById('typing');
+    const userList = document.getElementById('userList');
+
+    let typingTimeout;
+    let nickname = prompt("Enter a nickname:");
+    socket.emit('set nickname', nickname);
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (input.value) {
+        socket.emit('chat message', input.value);
+        const item = document.createElement('li');
+        item.textContent = `You: ${input.value}`;
+        messages.appendChild(item);
+        input.value = '';
+        socket.emit('stop typing');
+      }
+    });
+
+    input.addEventListener('input', () => {
+      socket.emit('typing');
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => socket.emit('stop typing'), 1000);
+    });
+
+    socket.on('chat message', data => {
+      const item = document.createElement('li');
+      item.textContent = `${data.user}: ${data.msg}`;
+      messages.appendChild(item);
+    });
+
+    socket.on('my message', msg => {
+      const item = document.createElement('li');
+      item.textContent = `You: ${msg}`;
+      messages.appendChild(item);
+    });
+
+    socket.on('private message', data => {
+      const item = document.createElement('li');
+      item.textContent = `[PRIVATE] ${data.from}: ${data.msg}`;
+      item.style.fontStyle = "italic";
+      messages.appendChild(item);
+    });
+
+    socket.on('private message sent', data => {
+      const item = document.createElement('li');
+      item.textContent = `[PRIVATE to ${data.to}]: ${data.msg}`;
+      item.style.fontStyle = "italic";
+      messages.appendChild(item);
+    });
+
+    socket.on('user connected', name => {
+      const item = document.createElement('li');
+      item.textContent = `${name} joined the chat`;
+      item.style.color = 'green';
+      messages.appendChild(item);
+    });
+
+    socket.on('user disconnected', name => {
+      const item = document.createElement('li');
+      item.textContent = `${name} left the chat`;
+      item.style.color = 'red';
+      messages.appendChild(item);
+    });
+
+    socket.on('typing', name => {
+      typingEl.textContent = `${name} is typing...`;
+    });
+
+    socket.on('stop typing', () => {
+      typingEl.textContent = '';
+    });
+
+    socket.on('update users', users => {
+      userList.innerHTML = '';
+      users.forEach(user => {
+        const li = document.createElement('li');
+        li.textContent = user;
+        userList.appendChild(li);
+      });
+    });
+
+    socket.on('error', err => {
+      const item = document.createElement('li');
+      item.textContent = `Error: ${err}`;
+      item.style.color = 'crimson';
+      messages.appendChild(item);
+    });
+  </script>
+</body>
+</html>
